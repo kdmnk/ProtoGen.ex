@@ -17,6 +17,6 @@ defmodule Commands.ChangeState do
     args = Keyword.keys(state.mcrl2_static_state) ++ cmd.args
     |> Enum.map(&Gen.GenMcrl2.stringifyAST/1)
     |> Enum.join(", ")
-    Gen.Helpers.writeLn(state, "#{state.module_name}#{cmd.value}(#{args})")
+    Gen.Helpers.writeLn(state, "#{state.module_name}_#{cmd.value}(#{args})")
   end
 end

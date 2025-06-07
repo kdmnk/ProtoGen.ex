@@ -3,7 +3,7 @@ defmodule Protocols.Addition do
     extensions: [Dsl.Root]
 
   messageType :Nat
-  doneRequirement [:protocolDone, :emptyNetwork]
+  successLabel [:protocolDone, :emptyNetwork]
 
   process Client, %{:server => {:pid, Server}} do
     init do

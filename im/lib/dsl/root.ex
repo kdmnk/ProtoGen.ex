@@ -17,9 +17,13 @@ defmodule Dsl.Root do
         type: :boolean,
         doc: "If loosing messages in the network is enabled."
       ],
-      doneRequirement: [
+      successLabel: [
         type: {:list, :atom},
         doc: "Specifies the multi action for the `done` label."
+      ],
+      failedLabel: [
+        type: {:list, :atom},
+        doc: "Specifies the multi action for the `fail` label."
       ],
       fifoNetwork: [
         type: :boolean,

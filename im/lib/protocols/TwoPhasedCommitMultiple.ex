@@ -4,7 +4,7 @@ defmodule Protocols.TwoPhasedCommitMultiple do
 
   messageType :Nat
   lossyNetwork false
-  doneRequirement [:protocolDone, :emptyNetwork]
+  successLabel [:protocolDone, :emptyNetwork]
 
   process User, %{}, 3 do
     init do

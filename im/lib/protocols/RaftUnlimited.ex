@@ -5,7 +5,7 @@ defmodule Protocols.RaftUnlimited do
   messageType [t: :Nat, data: :Nat]
   lossyNetwork false
   allowCrash true
-  doneRequirement [:protocolDone, :protocolDone, :protocolDone, :protocolDone, :protocolDone]
+  successLabel [:protocolDone, :protocolDone, :protocolDone, :protocolDone, :protocolDone]
   fifoNetwork true
   customLabels %{:exposeLeader => [:Nat, :Nat]}
 
