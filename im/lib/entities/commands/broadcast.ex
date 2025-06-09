@@ -9,6 +9,7 @@ defmodule Commands.Broadcast do
     """
     #{Gen.GenEx.writeLog(state, "broadcasting \#{inspect(#{message})} to #{Gen.GenEx.stringifyASTwithLookup(cmd.to)}")}
     #{Gen.GenEx.stringifyASTwithLookup(cmd.to)}
+    |> Enum.filter(fn c -> c != {__MODULE__, Node.self()} end)
     |> Enum.map(fn c -> GenServer.cast(c, {{__MODULE__, Node.self()}, #{message}}) end)
     """
   end

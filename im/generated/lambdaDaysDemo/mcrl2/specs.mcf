@@ -1,0 +1,12 @@
+%% µ-calculus formula:
+
+[(!done && !failedToElect)*]
+%% Eventually one of these states will be reached:
+<
+    %% all agreed on a leader
+    (true* . done) 
+    + 
+    %% all failed to elect themselves
+    (true* . failedToElect . true* . failedToElect . true* . failedToElect) 
+> 
+true
