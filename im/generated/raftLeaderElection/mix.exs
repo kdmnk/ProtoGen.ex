@@ -1,9 +1,9 @@
-defmodule Raftunlimited.MixProject do
+defmodule RaftUnlimited.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :raftunlimited,
+      app: :raftUnlimited,
       version: "0.1.0",
       elixir: "~> 1.17",
       start_permanent: Mix.env() == :prod,
@@ -15,7 +15,7 @@ defmodule Raftunlimited.MixProject do
   def application do
     [
       extra_applications: [:logger],
-      mod: {Raftunlimited.Application, []}
+      mod: {RaftUnlimited.Application, []}
     ]
   end
 

@@ -1,4 +1,4 @@
-defmodule Protocols.TwoPhasedCommitMultiple do
+defmodule Protocols.TwoPhasedCommit do
   use Dsl.Im,
     extensions: [Dsl.Root]
 

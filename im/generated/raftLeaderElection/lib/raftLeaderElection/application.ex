@@ -1,4 +1,4 @@
-defmodule Raftunlimited.Application do
+defmodule RaftUnlimited.Application do
   # See https://hexdocs.pm/elixir/Application.html
   # for more information on OTP Applications
   @moduledoc false
@@ -17,13 +17,13 @@ defmodule Raftunlimited.Application do
         {Candidate, :"candidate5@127.0.0.1"},
       ]}},
       {Cluster.Supervisor, [topologies(), [name: ClusterSupervisor]]},
-      # Starts a worker by calling: Raftunlimited.Worker.start_link(arg)
-      # {Raftunlimited.Worker, arg}
+      # Starts a worker by calling: RaftUnlimited.Worker.start_link(arg)
+      # {RaftUnlimited.Worker, arg}
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
-    opts = [strategy: :one_for_one, name: Raftunlimited.Supervisor]
+    opts = [strategy: :one_for_one, name: RaftUnlimited.Supervisor]
     Supervisor.start_link(children, opts)
 end
 

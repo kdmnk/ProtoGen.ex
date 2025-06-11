@@ -1,4 +1,4 @@
-defmodule MachApi do
+defmodule DemoNodeApi do
   use GenServer
   require Logger
 
@@ -11,7 +11,7 @@ defmodule MachApi do
   end
 
   def start() do
-    GenServer.cast({Mach, Node.self()}, :start)
+    GenServer.cast({DemoNode, Node.self()}, :start)
     %IdleState{}
   end
 

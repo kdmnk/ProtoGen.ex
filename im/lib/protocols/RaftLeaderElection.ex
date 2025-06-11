@@ -1,4 +1,4 @@
-defmodule Protocols.RaftUnlimited do
+defmodule Protocols.RaftLeaderElection do
   use Dsl.Im,
     extensions: [Dsl.Root]
 
