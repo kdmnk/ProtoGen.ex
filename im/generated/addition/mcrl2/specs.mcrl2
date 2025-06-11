@@ -37,43 +37,53 @@ eqn ((# v_receivers) == 0) -> SplitBroadcastedMessagesHelper(v_sender, v_receive
 
 
 act
-  sendMessage, receiveMessage, networkReceiveMessage, networkSendMessage, outgoingMessage, incomingMessage: Pid # Pid # MessageData;
+  sendMessage, receiveMessage, networkReceiveMessage, networkSendMessage, outgoingMessage, incomingMessage, canReceiveAMessage, exposeNextMessage, canReceiveNextMessage: Pid # Pid # MessageData;
   broadcastMessages, networkBroadcastMessages, broadcast: Pid # List(Pid) # MessageData;
-  lose, done, emptyNetwork, protocolDone;
+  lose, done, fail, emptyNetwork, protocolDone;
   resume, crash, timeout: Pid;
   
 proc
   Client(pid: Pid, server: Pid) = 
     sendMessage(pid, server, MakeMessage(1))
     .
-    Clientwait_for_answer(pid, server)
+    Client_wait_for_answer(pid, server)
   ;
-  Clientwait_for_answer(pid: Pid, server: Pid) = 
+  Client_wait_for_answer(pid: Pid, server: Pid) = 
+    (sum msg : MessageData . sum pid2 : Pid . canReceiveAMessage (pid , pid2 , msg) .
+      Client_wait_for_answer_ReceiveMessages(pid, server))
+    + (ALLOW_CRASH) -> crash(pid) . Client_wait_for_answer_Crashed(pid, server);
+
+  Client_wait_for_answer_ReceiveMessages(pid: Pid, server: Pid) = 
     (sum server : Pid . sum n : MessageData . (
       (n == 2) -> (receiveMessage(pid, server, n) . 
         protocolDone
       )
     ))
-    + (ALLOW_CRASH) -> crash(pid) . Clientwait_for_answercrashed(pid, server);
+  ;
 
-    Clientwait_for_answercrashed(pid: Pid, server: Pid) = 
-      (sum server : Pid . sum m : MessageData . receiveMessage(pid, server, m)) . Clientwait_for_answercrashed(pid, server)
-      + resume(pid) . Clientwait_for_answer(pid, server)
+  Client_wait_for_answer_Crashed(pid: Pid, server: Pid) = 
+    (sum server : Pid . sum m : MessageData . receiveMessage(pid, server, m)) . Client_wait_for_answer_Crashed(pid, server)
+    + resume(pid) . Client_wait_for_answer(pid, server)
   ;
   Server(pid: Pid) = 
-    Serverwait_for_number(pid)
+    Server_wait_for_number(pid)
   ;
-  Serverwait_for_number(pid: Pid) = 
+  Server_wait_for_number(pid: Pid) = 
+    (sum msg : MessageData . sum pid2 : Pid . canReceiveAMessage (pid , pid2 , msg) .
+      Server_wait_for_number_ReceiveMessages(pid))
+    + (ALLOW_CRASH) -> crash(pid) . Server_wait_for_number_Crashed(pid);
+
+  Server_wait_for_number_ReceiveMessages(pid: Pid) = 
     (sum some_client : Pid . sum n : MessageData . (
       (true) -> (receiveMessage(pid, some_client, n) . 
         sendMessage(pid, some_client, MakeMessage(n + 1))
       )
     ))
-    + (ALLOW_CRASH) -> crash(pid) . Serverwait_for_numbercrashed(pid);
+  ;
 
-    Serverwait_for_numbercrashed(pid: Pid) = 
-      (sum server : Pid . sum m : MessageData . receiveMessage(pid, server, m)) . Serverwait_for_numbercrashed(pid)
-      + resume(pid) . Serverwait_for_number(pid)
+  Server_wait_for_number_Crashed(pid: Pid) = 
+    (sum server : Pid . sum m : MessageData . receiveMessage(pid, server, m)) . Server_wait_for_number_Crashed(pid)
+    + resume(pid) . Server_wait_for_number(pid)
   ;
 Network(msgs: FSet(Message)) =
   (sum sender : Pid, msg: MessageData . ((# msgs) < NETWORK_LIMIT) -> (
@@ -88,17 +98,21 @@ Network(msgs: FSet(Message)) =
    ))
    +
    (sum msg: Message . (msg in msgs) ->
-     (networkSendMessage(receiverID(msg), senderID(msg), message(msg))
+     (
+        (exposeNextMessage (receiverID(msg), senderID(msg), message(msg)) .
+        networkSendMessage(receiverID(msg), senderID(msg), message(msg)))
        + ((LOSSY_NETWORK) -> lose)
      ) . Network(msgs = msgs - {msg}))
    + ((# msgs) == 0) -> (emptyNetwork . Network());
 init
-  allow({outgoingMessage, incomingMessage, broadcast, lose, done, timeout, resume, crash},
+  allow({outgoingMessage, incomingMessage, broadcast, lose, done, fail, timeout, resume, crash, canReceiveNextMessage},
   comm({
-    sendMessage|networkReceiveMessage -> outgoingMessage,
-    networkSendMessage|receiveMessage -> incomingMessage,
-    broadcastMessages|networkBroadcastMessages -> broadcast,
-    protocolDone|emptyNetwork -> done
+    sendMessage|networkReceiveMessage -> outgoingMessage
+    ,canReceiveAMessage|exposeNextMessage -> canReceiveNextMessage
+    ,networkSendMessage|receiveMessage -> incomingMessage
+    ,broadcastMessages|networkBroadcastMessages -> broadcast
+    ,protocolDone|emptyNetwork -> done
+    
   },
     Client(Client_PID, Server_PID) || Server(Server_PID) || Network({})
   )
