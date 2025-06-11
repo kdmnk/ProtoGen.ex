@@ -87,10 +87,10 @@ defmodule Protocols.LambdaDaysDemo do
           state! :candidate, [:approves_needed, :remaining_messages]
       end
 
-      # # receive new leader
-      # rcv! {:msg, :candidate}, :msg == 12 do
-      #   label! :protocolDone, []
-      # end
+      # receive new leader
+      rcv! {:msg, :candidate}, :msg == 12 do
+        label! :protocolDone, []
+      end
     end
   end
 end
