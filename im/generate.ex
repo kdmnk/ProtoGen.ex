@@ -1,0 +1,1 @@
+Gen.GenEx.main(Protocols.LambdaDaysDemo); Gen.GenMcrl2.main(Protocols.LambdaDaysDemo)

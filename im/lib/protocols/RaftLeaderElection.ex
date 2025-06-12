@@ -1,11 +1,11 @@
-defmodule Protocols.RaftUnlimited do
+defmodule Protocols.RaftLeaderElection do
   use Dsl.Im,
     extensions: [Dsl.Root]
 
   messageType [t: :Nat, data: :Nat]
   lossyNetwork false
   allowCrash true
-  doneRequirement [:protocolDone, :protocolDone, :protocolDone, :protocolDone, :protocolDone]
+  successLabel [:protocolDone, :protocolDone, :protocolDone, :protocolDone, :protocolDone]
   fifoNetwork true
   customLabels %{:exposeLeader => [:Nat, :Nat]}
 

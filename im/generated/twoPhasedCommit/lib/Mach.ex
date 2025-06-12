@@ -20,6 +20,7 @@ defmodule Mach do
     Logger.info("Mach: broadcasting #{inspect(0)} to var(state, :users)")
 
     var(state, :users)
+    |> Enum.filter(fn c -> c != {__MODULE__, Node.self()} end)
     |> Enum.map(fn c -> GenServer.cast(c, {{__MODULE__, Node.self()}, 0}) end)
 
     state =
@@ -63,6 +64,7 @@ defmodule Mach do
         Logger.info("Mach [receive_messages]: broadcasting #{inspect(3)} to var(state, :users)")
 
         var(state, :users)
+        |> Enum.filter(fn c -> c != {__MODULE__, Node.self()} end)
         |> Enum.map(fn c -> GenServer.cast(c, {{__MODULE__, Node.self()}, 3}) end)
 
         state =
@@ -73,6 +75,7 @@ defmodule Mach do
         Logger.info("Mach [receive_messages]: broadcasting #{inspect(4)} to var(state, :users)")
 
         var(state, :users)
+        |> Enum.filter(fn c -> c != {__MODULE__, Node.self()} end)
         |> Enum.map(fn c -> GenServer.cast(c, {{__MODULE__, Node.self()}, 4}) end)
 
         state =

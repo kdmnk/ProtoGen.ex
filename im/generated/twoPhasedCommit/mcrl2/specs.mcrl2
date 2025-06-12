@@ -38,33 +38,43 @@ eqn ((# v_receivers) == 0) -> SplitBroadcastedMessagesHelper(v_sender, v_receive
 
 
 act
-  sendMessage, receiveMessage, networkReceiveMessage, networkSendMessage, outgoingMessage, incomingMessage: Pid # Pid # MessageData;
+  sendMessage, receiveMessage, networkReceiveMessage, networkSendMessage, outgoingMessage, incomingMessage, canReceiveAMessage, exposeNextMessage, canReceiveNextMessage: Pid # Pid # MessageData;
   broadcastMessages, networkBroadcastMessages, broadcast: Pid # List(Pid) # MessageData;
-  lose, done, emptyNetwork, protocolDone;
+  lose, done, fail, emptyNetwork, protocolDone;
   resume, crash, timeout: Pid;
   
 proc
   User(pid: Pid) = 
-    Useridle(pid)
+    User_idle(pid)
   ;
-  Useridle(pid: Pid) = 
+  User_idle(pid: Pid) = 
+    (sum msg : MessageData . sum pid2 : Pid . canReceiveAMessage (pid , pid2 , msg) .
+      User_idle_ReceiveMessages(pid))
+    + (ALLOW_CRASH) -> crash(pid) . User_idle_Crashed(pid);
+
+  User_idle_ReceiveMessages(pid: Pid) = 
     (sum server : Pid . sum m : MessageData . (
       (m == 0) -> (receiveMessage(pid, server, m) . 
         (sum answer : Nat . (answer in [1, 2]) -> tau . (
           sendMessage(pid, server, MakeMessage(answer))
         ))
         .
-        Userwait_for_server(pid)
+        User_wait_for_server(pid)
       )
     ))
-    + (ALLOW_CRASH) -> crash(pid) . Useridlecrashed(pid);
-
-    Useridlecrashed(pid: Pid) = 
-      (sum server : Pid . sum m : MessageData . receiveMessage(pid, server, m)) . Useridlecrashed(pid)
-      + resume(pid) . Useridle(pid)
   ;
 
-  Userwait_for_server(pid: Pid) = 
+  User_idle_Crashed(pid: Pid) = 
+    (sum server : Pid . sum m : MessageData . receiveMessage(pid, server, m)) . User_idle_Crashed(pid)
+    + resume(pid) . User_idle(pid)
+  ;
+
+  User_wait_for_server(pid: Pid) = 
+    (sum msg : MessageData . sum pid2 : Pid . canReceiveAMessage (pid , pid2 , msg) .
+      User_wait_for_server_ReceiveMessages(pid))
+    + (ALLOW_CRASH) -> crash(pid) . User_wait_for_server_Crashed(pid);
+
+  User_wait_for_server_ReceiveMessages(pid: Pid) = 
     (sum server : Pid . sum m : MessageData . (
       (m == 3) -> (receiveMessage(pid, server, m) . 
         sendMessage(pid, server, MakeMessage(5))
@@ -76,21 +86,26 @@ proc
         sendMessage(pid, server, MakeMessage(5))
       )
     ))
-    + (ALLOW_CRASH) -> crash(pid) . Userwait_for_servercrashed(pid);
+  ;
 
-    Userwait_for_servercrashed(pid: Pid) = 
-      (sum server : Pid . sum m : MessageData . receiveMessage(pid, server, m)) . Userwait_for_servercrashed(pid)
-      + resume(pid) . Userwait_for_server(pid)
+  User_wait_for_server_Crashed(pid: Pid) = 
+    (sum server : Pid . sum m : MessageData . receiveMessage(pid, server, m)) . User_wait_for_server_Crashed(pid)
+    + resume(pid) . User_wait_for_server(pid)
   ;
   Mach(pid: Pid, users: List(Pid)) = 
     broadcastMessages(pid, users, MakeMessage(0))
     .
-    Machreceive_messages(pid, users, [], # (users))
+    Mach_receive_messages(pid, users, [], # (users))
   ;
-  Machreceive_messages(pid: Pid, users: List(Pid), msgs: List(Nat), remaining: Int) = 
+  Mach_receive_messages(pid: Pid, users: List(Pid), msgs: List(Nat), remaining: Int) = 
+    (sum msg : MessageData . sum pid2 : Pid . canReceiveAMessage (pid , pid2 , msg) .
+      Mach_receive_messages_ReceiveMessages(pid, users, msgs, remaining))
+    + (ALLOW_CRASH) -> crash(pid) . Mach_receive_messages_Crashed(pid, users, msgs, remaining);
+
+  Mach_receive_messages_ReceiveMessages(pid: Pid, users: List(Pid), msgs: List(Nat), remaining: Int) = 
     (sum some_user : Pid . sum m : MessageData . (
       (((m == 1 || m == 2) && remaining > 1)) -> (receiveMessage(pid, some_user, m) . 
-        Machreceive_messages(pid, users, (m |> msgs), remaining - 1)
+        Mach_receive_messages(pid, users, (m |> msgs), remaining - 1)
       )
     ))
     +
@@ -99,25 +114,30 @@ proc
         ((1 in (m |> msgs)) -> (
           broadcastMessages(pid, users, MakeMessage(3))
           .
-          Machreceive_acks(pid, users, # (users))
+          Mach_receive_acks(pid, users, # (users))
         ) <> (
           broadcastMessages(pid, users, MakeMessage(4))
           .
-          Machreceive_acks(pid, users, # (users))
+          Mach_receive_acks(pid, users, # (users))
         ))
       )
     ))
-    + (ALLOW_CRASH) -> crash(pid) . Machreceive_messagescrashed(pid, users, msgs, remaining);
-
-    Machreceive_messagescrashed(pid: Pid, users: List(Pid), msgs: List(Nat), remaining: Int) = 
-      (sum server : Pid . sum m : MessageData . receiveMessage(pid, server, m)) . Machreceive_messagescrashed(pid, users, msgs, remaining)
-      + resume(pid) . Machreceive_messages(pid, users, msgs, remaining)
   ;
 
-  Machreceive_acks(pid: Pid, users: List(Pid), remaining: Int) = 
+  Mach_receive_messages_Crashed(pid: Pid, users: List(Pid), msgs: List(Nat), remaining: Int) = 
+    (sum server : Pid . sum m : MessageData . receiveMessage(pid, server, m)) . Mach_receive_messages_Crashed(pid, users, msgs, remaining)
+    + resume(pid) . Mach_receive_messages(pid, users, msgs, remaining)
+  ;
+
+  Mach_receive_acks(pid: Pid, users: List(Pid), remaining: Int) = 
+    (sum msg : MessageData . sum pid2 : Pid . canReceiveAMessage (pid , pid2 , msg) .
+      Mach_receive_acks_ReceiveMessages(pid, users, remaining))
+    + (ALLOW_CRASH) -> crash(pid) . Mach_receive_acks_Crashed(pid, users, remaining);
+
+  Mach_receive_acks_ReceiveMessages(pid: Pid, users: List(Pid), remaining: Int) = 
     (sum some_user : Pid . sum m : MessageData . (
       ((m == 5 && remaining > 1)) -> (receiveMessage(pid, some_user, m) . 
-        Machreceive_acks(pid, users, remaining - 1)
+        Mach_receive_acks(pid, users, remaining - 1)
       )
     ))
     +
@@ -126,11 +146,11 @@ proc
         protocolDone
       )
     ))
-    + (ALLOW_CRASH) -> crash(pid) . Machreceive_ackscrashed(pid, users, remaining);
+  ;
 
-    Machreceive_ackscrashed(pid: Pid, users: List(Pid), remaining: Int) = 
-      (sum server : Pid . sum m : MessageData . receiveMessage(pid, server, m)) . Machreceive_ackscrashed(pid, users, remaining)
-      + resume(pid) . Machreceive_acks(pid, users, remaining)
+  Mach_receive_acks_Crashed(pid: Pid, users: List(Pid), remaining: Int) = 
+    (sum server : Pid . sum m : MessageData . receiveMessage(pid, server, m)) . Mach_receive_acks_Crashed(pid, users, remaining)
+    + resume(pid) . Mach_receive_acks(pid, users, remaining)
   ;
 Network(msgs: FSet(Message)) =
   (sum sender : Pid, msg: MessageData . ((# msgs) < NETWORK_LIMIT) -> (
@@ -145,17 +165,21 @@ Network(msgs: FSet(Message)) =
    ))
    +
    (sum msg: Message . (msg in msgs) ->
-     (networkSendMessage(receiverID(msg), senderID(msg), message(msg))
+     (
+        (exposeNextMessage (receiverID(msg), senderID(msg), message(msg)) .
+        networkSendMessage(receiverID(msg), senderID(msg), message(msg)))
        + ((LOSSY_NETWORK) -> lose)
      ) . Network(msgs = msgs - {msg}))
    + ((# msgs) == 0) -> (emptyNetwork . Network());
 init
-  allow({outgoingMessage, incomingMessage, broadcast, lose, done, timeout, resume, crash},
+  allow({outgoingMessage, incomingMessage, broadcast, lose, done, fail, timeout, resume, crash, canReceiveNextMessage},
   comm({
-    sendMessage|networkReceiveMessage -> outgoingMessage,
-    networkSendMessage|receiveMessage -> incomingMessage,
-    broadcastMessages|networkBroadcastMessages -> broadcast,
-    protocolDone|emptyNetwork -> done
+    sendMessage|networkReceiveMessage -> outgoingMessage
+    ,canReceiveAMessage|exposeNextMessage -> canReceiveNextMessage
+    ,networkSendMessage|receiveMessage -> incomingMessage
+    ,broadcastMessages|networkBroadcastMessages -> broadcast
+    ,protocolDone|emptyNetwork -> done
+    
   },
     User(User_PID . 0) || User(User_PID . 1) || User(User_PID . 2) || Mach(Mach_PID, User_PID) || Network({})
   )

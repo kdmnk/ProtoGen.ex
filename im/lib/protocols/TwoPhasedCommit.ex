@@ -1,10 +1,10 @@
-defmodule Protocols.TwoPhasedCommitMultiple do
+defmodule Protocols.TwoPhasedCommit do
   use Dsl.Im,
     extensions: [Dsl.Root]
 
   messageType :Nat
   lossyNetwork false
-  doneRequirement [:protocolDone, :emptyNetwork]
+  successLabel [:protocolDone, :emptyNetwork]
 
   process User, %{}, 3 do
     init do

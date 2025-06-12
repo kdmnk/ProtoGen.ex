@@ -1,6 +1,6 @@
-defmodule Raftunlimited do
+defmodule RaftUnlimited do
   @moduledoc """
-  Documentation for `Raftunlimited`.
+  Documentation for `RaftUnlimited`.
   """
 
   @doc """
@@ -8,7 +8,7 @@ defmodule Raftunlimited do
 
   ## Examples
 
-      iex> Raftunlimited.hello()
+      iex> RaftUnlimited.hello()
       :world
 
   """

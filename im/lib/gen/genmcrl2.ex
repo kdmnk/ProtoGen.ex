@@ -14,7 +14,8 @@ defmodule Gen.GenMcrl2 do
       :messageType => messageType,
       :lossyNetwork => lossyNetwork,
       :allowCrash => allowCrash,
-      :doneRequirement => doneRequirement,
+      :successLabel => successLabel,
+      :failedLabel => failedLabel,
       :customLabels => customLabels,
       :fifoNetwork => fifoNetwork,
       :processes => processes}) do
@@ -29,7 +30,7 @@ defmodule Gen.GenMcrl2 do
     end
 
     Gen.Helpers.write(state, getNetworkString(fifoNetwork))
-    Gen.Helpers.write(state, getInitString(processes, doneRequirement, customLabels, fifoNetwork))
+    Gen.Helpers.write(state, getInitString(processes, successLabel, failedLabel, customLabels, fifoNetwork))
 
     File.close(state.file)
   end
@@ -113,9 +114,9 @@ defmodule Gen.GenMcrl2 do
     #{getBroadcastedMessagesFn(fifoNetwork)}
 
     act
-      sendMessage, receiveMessage, networkReceiveMessage, networkSendMessage, outgoingMessage, incomingMessage: Pid # Pid # MessageData;
+      sendMessage, receiveMessage, networkReceiveMessage, networkSendMessage, outgoingMessage, incomingMessage, canReceiveAMessage, exposeNextMessage, canReceiveNextMessage: Pid # Pid # MessageData;
       broadcastMessages, networkBroadcastMessages, broadcast: Pid # List(Pid) # MessageData;
-      lose, done, emptyNetwork, protocolDone;
+      lose, done, fail, emptyNetwork, protocolDone;
       resume, crash, timeout: Pid;
       #{labelsDeclaration}
     proc
@@ -134,10 +135,16 @@ defmodule Gen.GenMcrl2 do
       v_receivers: List(Pid);
       v_message: MessageData;
       v_msgs: List(Message);
-  eqn ((# v_receivers) == 0) -> SplitBroadcastedMessagesHelper(v_sender, v_receivers, v_message, v_msgs) = v_msgs;
-      ((# v_receivers) > 0)  -> SplitBroadcastedMessagesHelper(v_sender, v_receivers, v_message, v_msgs) =
-                      SplitBroadcastedMessagesHelper(v_sender, tail(v_receivers), v_message, v_msgs
-                      <| Message(v_sender, head(v_receivers), v_message));
+  eqn ((# v_receivers) == 0) 
+          -> SplitBroadcastedMessagesHelper(v_sender, v_receivers, v_message, v_msgs) 
+          = v_msgs;
+      ((# v_receivers) > 0 && head(v_receivers) == v_sender)  
+          -> SplitBroadcastedMessagesHelper(v_sender, v_receivers, v_message, v_msgs) 
+          = SplitBroadcastedMessagesHelper(v_sender, tail(v_receivers), v_message, v_msgs);
+      ((# v_receivers) > 0 && head(v_receivers) != v_sender)  
+          -> SplitBroadcastedMessagesHelper(v_sender, v_receivers, v_message, v_msgs) 
+          = SplitBroadcastedMessagesHelper(v_sender, tail(v_receivers), v_message, v_msgs
+                <| Message(v_sender, head(v_receivers), v_message));
   """
 
   defp getBroadcastedMessagesFn(_), do: """
@@ -158,6 +165,7 @@ defmodule Gen.GenMcrl2 do
                        + {Message(v_sender, head(v_receivers), v_message)} );
   """
 
+  ## list 
   defp getNetworkString(true), do: """
     Network(msgs: List(Message)) =
     (sum sender : Pid, msg: MessageData . ((# msgs) < NETWORK_LIMIT) -> (
@@ -171,11 +179,15 @@ defmodule Gen.GenMcrl2 do
         Network(msgs = msgs ++ SplitBroadcastedMessages(sender, receivers, msg)))
      ))
      +
-      ((# msgs) > 0) -> ((networkSendMessage(receiverID(head(msgs)), senderID(head(msgs)), message(head(msgs)))
+      ((# msgs) > 0) -> (
+        (exposeNextMessage(receiverID(head(msgs)), senderID(head(msgs)), message(head(msgs))) .
+            networkSendMessage(receiverID(head(msgs)), senderID(head(msgs)), message(head(msgs))))
         + ((LOSSY_NETWORK) -> lose)
-      ) . Network(msgs = tail(msgs)))
+      ) . Network(msgs = tail(msgs))
      + ((# msgs) == 0) -> (emptyNetwork . Network());
   """
+
+  ## set
   defp getNetworkString(_), do: """
     Network(msgs: FSet(Message)) =
       (sum sender : Pid, msg: MessageData . ((# msgs) < NETWORK_LIMIT) -> (
@@ -190,13 +202,15 @@ defmodule Gen.GenMcrl2 do
        ))
        +
        (sum msg: Message . (msg in msgs) ->
-         (networkSendMessage(receiverID(msg), senderID(msg), message(msg))
+         (
+            (exposeNextMessage (receiverID(msg), senderID(msg), message(msg)) .
+            networkSendMessage(receiverID(msg), senderID(msg), message(msg)))
            + ((LOSSY_NETWORK) -> lose)
          ) . Network(msgs = msgs - {msg}))
        + ((# msgs) == 0) -> (emptyNetwork . Network());
     """
 
-  defp getInitString(processes, doneRequirement, customLabels, fifoNetwork) do
+  defp getInitString(processes, successLabel, failedLabel, customLabels, fifoNetwork) do
     pr = processes
       |> Enum.map(fn p ->
         case p.quantity do
@@ -225,16 +239,18 @@ defmodule Gen.GenMcrl2 do
       end)
       |> Enum.join(" || ")
 
-    actionLabels = ["outgoingMessage", "incomingMessage","broadcast", "lose", "done", "timeout", "resume", "crash"] ++ if(customLabels, do: Map.keys(customLabels), else: [])
+    actionLabels = ["outgoingMessage", "incomingMessage","broadcast", "lose", "done", "fail", "timeout", "resume", "crash", "canReceiveNextMessage"] ++ if(customLabels, do: Map.keys(customLabels), else: [])
 
     """
     init
       allow({#{Enum.join(actionLabels, ", ")}},
       comm({
-        sendMessage|networkReceiveMessage -> outgoingMessage,
-        networkSendMessage|receiveMessage -> incomingMessage,
-        broadcastMessages|networkBroadcastMessages -> broadcast#{if(doneRequirement, do: ",", else: "")}
-        #{if(doneRequirement, do: "#{Enum.join(doneRequirement, "|")} -> done", else: "")}
+        sendMessage|networkReceiveMessage -> outgoingMessage
+        ,canReceiveAMessage|exposeNextMessage -> canReceiveNextMessage
+        ,networkSendMessage|receiveMessage -> incomingMessage
+        ,broadcastMessages|networkBroadcastMessages -> broadcast
+        #{if(successLabel, do: ",#{Enum.join(successLabel, "|")} -> done", else: "")}
+        #{if(failedLabel, do: ",#{Enum.join(failedLabel, "|")} -> fail", else: "")}
       },
         #{pr} || Network(#{if(fifoNetwork, do: "[]", else: "{}")})
       )
